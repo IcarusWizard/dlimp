@@ -29,7 +29,6 @@ def _wrap(f, is_flattened):
 
     return wrapper
 
-
 class DLataset(tf.data.Dataset):
     """A DLimp Dataset. This is a thin wrapper around tf.data.Dataset that adds some utilities for working
     with datasets of trajectories.
@@ -149,13 +148,14 @@ class DLataset(tf.data.Dataset):
                 skip_prefetch=True,
                 num_parallel_calls_for_interleave_files=num_parallel_reads,
                 interleave_cycle_length=num_parallel_reads,
+                add_tfds_id=True 
             ),
         )._apply_options()
 
         dataset = dataset.enumerate().traj_map(_broadcast_metadata_rlds)
 
         return dataset
-
+    
     def map(
         self,
         fn: Callable[[Dict[str, Any]], Dict[str, Any]],
@@ -355,6 +355,9 @@ def _broadcast_metadata_rlds(i: tf.Tensor, traj: Dict[str, Any]) -> Dict[str, An
     entry. This function moves the "steps" entry to the top level, broadcasting any metadata to the length of the
     trajectory. This function also adds the extra metadata fields `_len`, `_traj_index`, and `_frame_index`.
     """
+    # Add TFDS ID as file path info
+    tfds_id = traj.get('tfds_id')
+
     steps = traj.pop("steps")
 
     traj_len = tf.shape(tf.nest.flatten(steps)[0])[0]
@@ -373,4 +376,10 @@ def _broadcast_metadata_rlds(i: tf.Tensor, traj: Dict[str, Any]) -> Dict[str, An
     traj["_traj_index"] = tf.repeat(i, traj_len)
     traj["_frame_index"] = tf.range(traj_len)
 
+    
+    assert tfds_id is not None
+    assert "_file_name" not in traj
+    traj["_file_name"] = tf.repeat(tfds_id, traj_len)
+
     return traj
+
